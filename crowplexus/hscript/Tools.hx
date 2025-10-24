@@ -104,6 +104,15 @@ class Tools {
 				f(e);
 			case ECheckType(e, _):
 				f(e);
+			case EClass(name, extend, implement, fields):
+				for (field in fields) {
+					switch (field.kind) {
+						case KVar(type, expr):
+							if (expr != null) f(expr);
+						case KFunction(args, ret, body):
+							f(body);
+					}
+				}
 			default:
 		}
 	}
@@ -137,6 +146,21 @@ class Tools {
 				], def == null ? null : f(def));
 			case EMeta(name, args, e): EMeta(name, args == null ? null : [for (a in args) f(a)], f(e));
 			case ECheckType(e, t): ECheckType(f(e), t);
+			case EClass(name, extend, implement, fields): 
+				EClass(name, extend, implement, [
+					for (field in fields) {
+						name: field.name,
+						isPublic: field.isPublic,
+						isStatic: field.isStatic,
+						isFinal: field.isFinal,
+						isOverride: field.isOverride,
+						kind: switch (field.kind) {
+							case KVar(type, expr): KVar(type, expr != null ? f(expr) : null);
+							case KFunction(args, ret, body): KFunction(args, ret, f(body));
+						},
+						meta: field.meta
+					}
+				]);
 			default: #if hscriptPos e.e #else e #end;
 		}
 		return mk(edef, e);

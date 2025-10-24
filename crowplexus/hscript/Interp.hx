@@ -54,13 +54,13 @@ class Interp {
 	public var variables: Map<String, Dynamic>;
 	public var imports: Map<String, Dynamic>;
 
-	var locals: Map<String, LocalVar>;
+	public var locals: Map<String, LocalVar>;
 	var binops: Map<String, Expr->Expr->Dynamic>;
 	#else
 	public var variables: Hash<Dynamic>;
 	public var imports: Hash<Dynamic>;
 
-	var locals: Hash<LocalVar>;
+	public var locals: Hash<LocalVar>;
 	var binops: Hash<Expr->Expr->Dynamic>;
 	#end
 

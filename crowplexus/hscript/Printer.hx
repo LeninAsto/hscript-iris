@@ -461,6 +461,55 @@ class Printer {
 			case EUsing(name):
 				add("using ");
 				add(name);
+			case EClass(name, extend, implement, fields):
+				add("class ");
+				add(name);
+				if (extend != null) {
+					add(" extends ");
+					add(extend);
+				}
+				if (implement != null && implement.length > 0) {
+					add(" implements ");
+					add(implement.join(", "));
+				}
+				add(" {");
+				newline();
+				incrementIndent();
+				for (field in fields) {
+					add(tabs);
+					if (field.isPublic == true) add("public ");
+					if (field.isStatic == true) add("static ");
+					if (field.isFinal == true) add("final ");
+					if (field.isOverride == true) add("override ");
+					switch (field.kind) {
+						case KVar(type, expr):
+							add("var ");
+							add(field.name);
+							addType(type);
+							if (expr != null) {
+								add(" = ");
+								expr(expr);
+							}
+							add(";");
+						case KFunction(args, ret, body):
+							add("function ");
+							add(field.name);
+							add("(");
+							var first = true;
+							for (a in args) {
+								if (first) first = false else add(", ");
+								addArg(a);
+							}
+							add(")");
+							addType(ret);
+							add(" ");
+							expr(body);
+					}
+					newline();
+				}
+				decrementIndent();
+				add(tabs);
+				add("}");
 		}
 	}
 
