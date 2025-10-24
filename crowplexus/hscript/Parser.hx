@@ -701,6 +701,8 @@ class Parser {
 				if (!maybe(TId("function")))
 					unexpected(TId("inline"));
 				return parseStructure("function");
+			case "class":
+				return parseClass(p1);
 			case "function":
 				var tk = token();
 				var name = null;
@@ -1093,6 +1095,144 @@ class Parser {
 				ret = parseType();
 		}
 		return {args: args, ret: ret, body: parseExpr()};
+	}
+
+	function parseClass(p1: Int) {
+		// Parse class name
+		var className = getIdent();
+
+		// Parse extends
+		var extend: String = null;
+		var tk = token();
+		if (Type.enumEq(tk, TId("extends"))) {
+			extend = getIdent();
+			tk = token();
+		}
+
+		// Parse implements
+		var implement: Array<String> = [];
+		if (Type.enumEq(tk, TId("implements"))) {
+			while (true) {
+				implement.push(getIdent());
+				tk = token();
+				if (tk != TComma)
+					break;
+			}
+		}
+
+		// Ensure opening brace
+		if (tk != TBrOpen) {
+			push(tk);
+			ensure(TBrOpen);
+		}
+
+		// Parse class fields
+		var fields: Array<ClassField> = [];
+		while (true) {
+			tk = token();
+			if (tk == TBrClose)
+				break;
+			if (tk == TEof) {
+				if (resumeErrors)
+					break;
+				unexpected(tk);
+			}
+
+			push(tk);
+			var field = parseClassField();
+			if (field != null)
+				fields.push(field);
+		}
+
+		return mk(EClass(className, extend, implement, fields), p1);
+	}
+
+	function parseClassField(): Null<ClassField> {
+		var meta: Metadata = [];
+		var isPublic = false;
+		var isStatic = false;
+		var isFinal = false;
+		var isOverride = false;
+
+		// Parse metadata and modifiers
+		while (true) {
+			var tk = token();
+			switch (tk) {
+				case TMeta(name):
+					var args = [];
+					tk = token();
+					if (tk == TPOpen) {
+						args = parseExprList(TPClose);
+					} else {
+						push(tk);
+					}
+					meta.push({name: name, params: args});
+				case TId("public"):
+					isPublic = true;
+				case TId("private"):
+					isPublic = false;
+				case TId("static"):
+					isStatic = true;
+				case TId("final"):
+					isFinal = true;
+				case TId("override"):
+					isOverride = true;
+				case TId("var"):
+					// Parse variable
+					var name = getIdent();
+					var type: Null<CType> = null;
+					var expr: Null<Expr> = null;
+
+					tk = token();
+					if (tk == TDoubleDot && allowTypes) {
+						type = parseType();
+						tk = token();
+					}
+
+					if (Type.enumEq(tk, TOp("="))) {
+						expr = parseExpr();
+					} else {
+						push(tk);
+					}
+
+					// Consume semicolon if present
+					tk = token();
+					if (tk != TSemicolon)
+						push(tk);
+
+					return {
+						name: name,
+						isPublic: isPublic,
+						isStatic: isStatic,
+						isFinal: isFinal,
+						isOverride: isOverride,
+						kind: KVar(type, expr),
+						meta: meta
+					};
+				case TId("function"):
+					// Parse function
+					var name = getIdent();
+					var inf = parseFunctionDecl();
+
+					// Consume semicolon if present
+					tk = token();
+					if (tk != TSemicolon)
+						push(tk);
+
+					return {
+						name: name,
+						isPublic: isPublic,
+						isStatic: isStatic,
+						isFinal: isFinal,
+						isOverride: isOverride,
+						kind: KFunction(inf.args, inf.ret, inf.body),
+						meta: meta
+					};
+				default:
+					push(tk);
+					return null;
+			}
+		}
 	}
 
 	function parsePath() {

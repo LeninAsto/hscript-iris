@@ -757,6 +757,11 @@ class Interp {
 				}
 
 				variables.set(enumName, obj);
+			case EClass(name, extend, implement, fields):
+				// Create class definition
+				var classDef = createClassDefinition(name, extend, implement, fields);
+				variables.set(name, classDef);
+				return null;
 			case EDirectValue(value):
 				return value;
 			case EUsing(name):
@@ -853,6 +858,20 @@ class Interp {
 	function get(o: Dynamic, f: String): Dynamic {
 		if (o == null)
 			error(EInvalidAccess(f));
+
+		// Check if it's a script class instance
+		if (Std.isOfType(o, ScriptClassInstance)) {
+			var instance: ScriptClassInstance = cast o;
+			if (instance.fields.exists(f))
+				return instance.fields.get(f);
+			if (instance.methods.exists(f)) {
+				var method = instance.methods.get(f);
+				return Reflect.makeVarArgs((args: Array<Dynamic>) -> {
+					return instance.callMethod(this, f, args);
+				});
+			}
+		}
+
 		return {
 			#if php
 			// https://github.com/HaxeFoundation/haxe/issues/4915
@@ -870,6 +889,14 @@ class Interp {
 	function set(o: Dynamic, f: String, v: Dynamic): Dynamic {
 		if (o == null)
 			error(EInvalidAccess(f));
+
+		// Check if it's a script class instance
+		if (Std.isOfType(o, ScriptClassInstance)) {
+			var instance: ScriptClassInstance = cast o;
+			instance.setField(f, v);
+			return v;
+		}
+
 		Reflect.setProperty(o, f, v);
 		return v;
 	}
@@ -993,6 +1020,143 @@ class Interp {
 		var c = Type.resolveClass(cl);
 		if (c == null)
 			c = resolve(cl);
+
+		// Check if it's a script-defined class
+		if (Std.isOfType(c, ScriptClass)) {
+			var scriptClass: ScriptClass = cast c;
+			return scriptClass.createInstance(this, args);
+		}
+
 		return Type.createInstance(c, args);
+	}
+
+	function createClassDefinition(name: String, extend: String, implement: Array<String>, fields: Array<ClassField>): Dynamic {
+		var scriptClass = new ScriptClass(name, extend, implement, fields);
+		return scriptClass;
+	}
+}
+
+// Class to represent script-defined classes
+class ScriptClass {
+	public var name: String;
+	public var extend: String;
+	public var implement: Array<String>;
+	public var fields: Array<ClassField>;
+	public var staticFields: Map<String, Dynamic>;
+
+	public function new(name: String, extend: String, implement: Array<String>, fields: Array<ClassField>) {
+		this.name = name;
+		this.extend = extend;
+		this.implement = implement;
+		this.fields = fields;
+		this.staticFields = new Map();
+
+		// Initialize static fields
+		for (field in fields) {
+			if (field.isStatic == true) {
+				switch (field.kind) {
+					case KVar(type, expr):
+						if (expr != null) {
+							// We'll need the interp to evaluate the expression
+							// For now, set to null
+							staticFields.set(field.name, null);
+						}
+					case KFunction(args, ret, body):
+						// Store the function definition
+						staticFields.set(field.name, {args: args, ret: ret, body: body});
+				}
+			}
+		}
+	}
+
+	public function createInstance(interp: Interp, args: Array<Dynamic>): Dynamic {
+		var instance = new ScriptClassInstance(this, interp);
+
+		// Initialize instance fields
+		for (field in fields) {
+			if (field.isStatic != true) {
+				switch (field.kind) {
+					case KVar(type, expr):
+						var value = null;
+						if (expr != null) {
+							value = interp.expr(expr);
+						}
+						instance.fields.set(field.name, value);
+					case KFunction(args, ret, body):
+						// Store method definition
+						instance.methods.set(field.name, {args: args, ret: ret, body: body});
+				}
+			}
+		}
+
+		// Call constructor if it exists
+		if (instance.methods.exists("new")) {
+			var constructor = instance.methods.get("new");
+			instance.callMethod(interp, "new", args);
+		}
+
+		return instance;
+	}
+}
+
+// Instance of a script-defined class
+class ScriptClassInstance {
+	public var scriptClass: ScriptClass;
+	public var fields: Map<String, Dynamic>;
+	public var methods: Map<String, {args: Array<Argument>, ret: Null<CType>, body: Expr}>;
+
+	public function new(scriptClass: ScriptClass, interp: Interp) {
+		this.scriptClass = scriptClass;
+		this.fields = new Map();
+		this.methods = new Map();
+	}
+
+	public function callMethod(interp: Interp, name: String, args: Array<Dynamic>): Dynamic {
+		if (!methods.exists(name)) {
+			return null;
+		}
+
+		var method = methods.get(name);
+
+		// Create new local scope
+		var oldLocals = interp.locals;
+		interp.locals = new Map();
+
+		// Bind 'this' to the instance
+		interp.locals.set("this", {r: this, const: true});
+
+		// Bind arguments
+		for (i in 0...method.args.length) {
+			var arg = method.args[i];
+			var value = (i < args.length) ? args[i] : (arg.value != null ? interp.expr(arg.value) : null);
+			interp.locals.set(arg.name, {r: value, const: false});
+		}
+
+		// Execute method body
+		var result = interp.expr(method.body);
+
+		// Restore locals
+		interp.locals = oldLocals;
+
+		return result;
+	}
+
+	public function getField(name: String): Dynamic {
+		if (fields.exists(name))
+			return fields.get(name);
+		if (methods.exists(name)) {
+			var method = methods.get(name);
+			// Return a callable function
+			return Reflect.makeVarArgs((args: Array<Dynamic>) -> {
+				// We need the interp instance here, but we don't have it
+				// This is a limitation - methods need to be called differently
+				return null;
+			});
+		}
+		return null;
+	}
+
+	public function setField(name: String, value: Dynamic): Void {
+		fields.set(name, value);
 	}
 }

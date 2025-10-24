@@ -92,10 +92,26 @@ enum Expr
 	EEnum(name:String, fields:Array<EnumType>);
 	EDirectValue(value:Dynamic);
 	EUsing(name:String);
+	EClass(name:String, ?extend:String, ?implement:Array<String>, fields:Array<ClassField>);
 }
 
 typedef Argument = {name: String, ?t: CType, ?opt: Bool, ?value: Expr};
 typedef Metadata = Array<{name: String, params: Array<Expr>}>;
+
+typedef ClassField = {
+	name: String,
+	?isPublic: Bool,
+	?isStatic: Bool,
+	?isFinal: Bool,
+	?isOverride: Bool,
+	kind: ClassFieldKind,
+	?meta: Metadata
+}
+
+enum ClassFieldKind {
+	KVar(type: Null<CType>, expr: Null<Expr>);
+	KFunction(args: Array<Argument>, ret: Null<CType>, expr: Expr);
+}
 
 @:structInit
 class SwitchCase {

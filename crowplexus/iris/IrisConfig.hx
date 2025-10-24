@@ -6,6 +6,7 @@ typedef RawIrisConfig = {
 	var name: String;
 	var ?autoRun: Bool;
 	var ?autoPreset: Bool;
+	var ?allowClasses: Bool;
 	var ?localBlocklist: Array<String>;
 };
 
@@ -15,6 +16,7 @@ class IrisConfig {
 	public var name: String = null;
 	public var autoRun: Bool = true;
 	public var autoPreset: Bool = true;
+	public var allowClasses: Bool = false;
 	public var packageName: String = null;
 
 	@:unreflective public var localBlocklist: Array<String> = [];
@@ -25,12 +27,14 @@ class IrisConfig {
 	 * @param name			The obvious!
 	 * @param autoRun					Makes the script run automatically upon being created.
 	 * @param autoPreset			Makes the script automatically set imports to itself upon creation.
+	 * @param allowClasses		Allow class declarations in the script.
 	 * @param localBlocklist	List of classes or enums that cannot be used within this particular script
 	**/
-	public function new(name: String, autoRun: Bool = true, autoPreset: Bool = true, ?localBlocklist: Array<String>) {
+	public function new(name: String, autoRun: Bool = true, autoPreset: Bool = true, allowClasses: Bool = false, ?localBlocklist: Array<String>) {
 		this.name = name;
 		this.autoRun = autoRun;
 		this.autoPreset = autoPreset;
+		this.allowClasses = allowClasses;
 		if (localBlocklist != null)
 			this.localBlocklist = localBlocklist;
 	}
@@ -39,6 +43,6 @@ class IrisConfig {
 		if (d != null && Std.isOfType(d, IrisConfig))
 			return d;
 		var d: RawIrisConfig = cast d;
-		return new IrisConfig(d.name, d.autoRun, d.autoPreset, d.localBlocklist);
+		return new IrisConfig(d.name, d.autoRun, d.autoPreset, d.allowClasses ?? false, d.localBlocklist);
 	}
 }
