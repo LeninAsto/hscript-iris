@@ -477,10 +477,14 @@ class Printer {
 				incrementIndent();
 				for (field in fields) {
 					add(tabs);
-					if (field.isPublic == true) add("public ");
-					if (field.isStatic == true) add("static ");
-					if (field.isFinal == true) add("final ");
-					if (field.isOverride == true) add("override ");
+					if (field.isPublic == true)
+						add("public ");
+					if (field.isStatic == true)
+						add("static ");
+					if (field.isFinal == true)
+						add("final ");
+					if (field.isOverride == true)
+						add("override ");
 					switch (field.kind) {
 						case KVar(type, expr):
 							add("var ");
@@ -497,7 +501,10 @@ class Printer {
 							add("(");
 							var first = true;
 							for (a in args) {
-								if (first) first = false else add(", ");
+								if (first)
+									first = false
+								else
+									add(", ");
 								addArg(a);
 							}
 							add(")");
